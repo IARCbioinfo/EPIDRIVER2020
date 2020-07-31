@@ -1,0 +1,483 @@
+---
+title: "Figure2"
+author: "cahaisv"
+date: "21 mars 2019"
+output: 
+  html_document:
+     code_folding: "show"
+---
+
+```{r include = TRUE}
+
+library(data.table)
+library(ggplot2)
+library(knitr)
+library(formattable)
+suppressPackageStartupMessages(library(ggbio))
+suppressPackageStartupMessages(library(Homo.sapiens))
+suppressPackageStartupMessages(library(BSgenome.Hsapiens.UCSC.hg19))
+```
+
+```{r include = FALSE}
+#colors
+snv_col<-"#7570B3" #sinle nucleotide variants
+amp_col<-"#D95F02" #amplification cnv+
+amp_m_col<-"#B93F02" 
+del_col<-"#1B9E77" #00b050 #deletions cnv-
+del_m_col<-"#01796f" ## #F2AD00
+mul_col<-"#333344" ## ##0B1F02 #ffc000 #multiple alterations
+palette1<-c(snv_col, amp_col, del_col, mul_col)
+palette2<-c(snv_col, amp_col, amp_m_col, del_col, del_m_col, mul_col)
+```
+
+##Summary
+To identify the candidate Epigenically regulated Genes (ERG) across different cancer types, we first employed a comprehensive and integrative in silico data mining on the mutation of ERGs using publicly available TCGA database and cBioPortal for Cancer Genomics (http://www.cbioportal.org/ public-portal/index.do) and GTEX database. Our analysis of all known ERGs (426 genes) across 33 cancer types.
+
+We downloaded three types of data from TCGA:
+
+* Expression data as Zscores
+* Copy Number Variation (CNV) : 0=no CNV, 1=amplified, -1=deleted, 2=deep amplification, -2=deep deletion
+* Single Nuleotide Variant (SNV). This data regroup all somatic, non-synonymous mutations. raw data indicate the type of mutation, but we turned it into a mutation status indicating number of SNVs for a gene in one sample.
+
+```{r include = TRUE}
+load("../data_426.rdata")
+```
+
+###Genes Class
+We also defined 12 class of genes based on their functionalities including 285 genes:
+
+* Histone Methyl editor (HM_e) = Histone demethylases (HDM)             * DNA methylation editor (DM_e)
+* Histone Methyl writer (HM_w) = Histone methyltransferases (HMT)       * DNA methylation writer (DM_w)
+* Histone methyl reader (HM_r)                                          * DNA methylation reader (DM_r)
+
+* Histone Acetyl editor (HA_e) = Histone acetyltransferases (HDAC)      * Chromatin remodeling complex (ChRC)
+* Histone Acetyl writer (HA_w) = Histone deacetylases (HAT)             * Helicase
+* Histone Acetyl reader (HA_r)                                          * Others
+
+```{r include = TRUE}
+genes426<-read.csv("/mojo/andrea/426genes.txt", sep=" ")$x
+HM_e=c("JMJD1C","JMJD6","JMJD8","KDM1A","KDM1B","KDM2A","KDM2B","KDM3A","KDM3B","KDM4A","KDM4B","KDM4C","KDM4D","KDM4E","KDM5A","KDM5B","KDM5C","KDM5D","KDM6A","KDM6B","KDM7A","KDM8","UTY")
+HM_w=c("ASH1L","ASH2L","CARM1","DOT1L","EHMT1","EHMT2","EZH1","EZH2","MLLT10","MLLT6","NSD1","PRDM1","PRDM2","PRDM4","PRDM5","PRDM6","PRDM7","PRDM8","PRDM9","PRDM10","PRDM11","PRDM12","PRDM13","PRDM14","PRDM15","PRDM16","PRMT1","PRMT2","PRMT3","PRMT5","PRMT6","PRMT7","PRMT8","SETD1A","SETD1B","SETD2","SETD3","SETD4","SETD5","SETD6","SETD7","SETD8","SETDB1","SETDB2","SETMAR","SMYD1","SMYD2","SMYD3","SMYD4","SMYD5","SUV39H1","SUV39H2","SUV420H1","SUV420H2","AEBP2","KMT2A","KMT2B","KMT2C","KMT2D","KMT2E","WHSC1","WHSC1L1")
+HM_r=c("CDYL","CDYL2","PHF1","PHF6","PHF19","PHF20","PHF21A","PHF21B","PHF23","CBX1","CBX3","CBX4","CBX5","CBX6","CBX7","TDRD3","SND1","MTF2","AIRE","ING1","ING2","ING3","ING4","ING5","PYGO1","PYGO2","GLYR1","MSH6","PSIP1","ZCWPW1","ZCWPW2","CCDC101","HDGFRP2","MORF4L1","MPHOSPH8","RAG2","SCML2","SFMBT1","PHF20L1", "GATAD2B", "GATAD2A")
+HA_e=c("HDAC1","HDAC2","HDAC3","HDAC4","HDAC5","HDAC6","HDAC7","HDAC8","HDAC9","HDAC10","HDAC11","SIRT1","SIRT2","SIRT3","SIRT4","SIRT5","SIRT6","SIRT7")
+HA_w=c("CLOCK","CREBBP","ELP3","EP300","EP400","GTF3C4","HAT1","KAT2A","KAT2B","KAT5","KAT6A","KAT6B","KAT7","KAT8","ELP4","NCOA1","NCOA3","MSL3","KANSL1")
+HA_r=c("ATAD2","ATAD2B","BAZ1B","BAZ1A","BAZ2A","BAZ2B","BPTF","BRD1","BRD2","BRD3","BRD4","BRD7","BRD8","BRD9","BRDT","BRPF1","BRPF3","BRWD1","BRWD3","CECR2","PBRM1","PHIP","SP100","SP110","SP140","SP140L","TAF1","TAF1L","TAF3","TRIM24","TRIM28","TRIM33","TRIM66","ZMYND11","ZMYND8","DPF3")
+DM_w=c("DNMT1","DNMT3A","DNMT3B","DNMT3L")
+DM_e=c("AICDA","TET1","TET2","TET3","IDH1","IDH2")
+DM_r=c("MBD1","MBD2","MBD3","MBD4","MBD5","MECP2","UHRF1","UHRF2")
+ChRC=c("RSF1","POLE3","CHRAC1","RBBP7","RBBP4","MTA1","MTA2","MTA3","ARID1A","ARID2","PHC3","PHC1","PHC2","BMI1","YY1","JARID2","SUZ12","EED","HNF1A","NCOR1","ARID4A","MEN1","RBBP5","WDR5","CHAF1A","CHAF1B","TDG","DAXX","SIN3A","SIN3B","ARID1B","ACTL6B","DPF1","ACTL6A", "CBX8", "CBX2", "RNF2")
+Helicases=c("ATRX","HELLS","INO80","SMARCA1","SMARCA2","SMARCA4","SMARCA5","SMARCB1","SMARCC1","SMARCC2","SMARCD1","SMARCD2","SMARCD3","SMARCE1","CHD1","CHD1L","CHD2","CHD3","CHD4","CHD5","CHD6","CHD7","CHD8","CHD9")
+Others=genes426[! genes426 %in% c(HM_e,HM_w,HM_r,HA_e,HA_w,HA_r,DM_w,DM_e,DM_r,ChRC,Helicases)]
+genelist<-list(HM_e=HM_e,HM_w=HM_w,HM_r=HM_r,HA_e=HA_e,HA_w=HA_w,HA_r=HA_r,DM_w=DM_w,DM_e=DM_e,DM_r=DM_r,ChRC=ChRC,Helicases=Helicases,Others=Others)
+```
+
+##Figure 2A : Type of alteration across all ERGs and samples in each cancer (%)
+
+We first analysed distribution of the CNV and SNV frequency in ERG across samples within cancer types and geneclass :
+
+* Here we just merge deletion and deep deletion into one class (del) as for amplication and deep amplification (amp).
+* In the same sample one gene can be altered by both CNV and SNV (amp_snv & del_snv).
+
+###Figure 2A1 : Type of alteration across all ERGs and samples in each cancer (%)
+
+```{r include = TRUE}
+#calculate proportion of each alteration type by cancer
+mutex<-data[ , .(normal=sum(cnv==0 & mutStatus==0)/.N, snv=sum(cnv==0 & mutStatus==1)/.N,
+                 amplified=sum(cnv>0 & mutStatus==0)/.N, mut_amplified=sum(cnv>0 & mutStatus==1)/.N,
+                 deleted=sum(cnv<0 & mutStatus==0)/.N, mut_deleted=sum(cnv<0 & mutStatus==1)/.N ), by="cancer"]
+
+#format data
+mutex<-melt( mutex, id.vars="cancer", variable.name = "alt", value.name="prop" )
+mutex$alt<-factor(mutex$alt, levels=c("normal","snv","amplified","mut_amplified","deleted","mut_deleted"))
+levels(mutex$alt)<-c("normal","snv","amp","amp_snv","del","del_snv","ma")
+mutex[ , odr:=max(prop), by=cancer ]
+
+#build figure
+fig2a1<-ggplot(data=mutex[alt!="normal"], aes(x=reorder(cancer,odr) , y=prop, fill=alt) ) + 
+  geom_bar(stat="identity",position="stack") + 
+  scale_fill_manual(values=palette2) + 
+  ylab("Type of alteration across all ERGs and samples in each cancer (%)") + 
+  theme(axis.title.x = element_blank(), axis.text.x=element_text(angle=50,hjust=1, size=20)) +
+  theme(axis.title.y = element_text(size=14), axis.text.y=element_text(size=14)  ) +
+  theme(legend.title=element_blank(), legend.text=element_text(size=28), legend.position = c(0.8, 0.8) ) 
+```
+
+```{r echo = FALSE, fig.height = 10, fig.width = 17, fig.align = "center"}
+plot(fig2a1)
+```
+
+```{r include = FALSE}
+jpeg("figure2a1.jpeg", width=2800, height=1300, res = 200)
+plot(fig2a1)
+dev.off()
+```
+
+###Figure 2A2 : Percentage of samples with at least one genetetic alteration in ERG among genes classes
+
+```{r include = TRUE}
+#calcuate proportion of each alteration type by geneclass
+mutex<-data[geneclass!="None", .(normal=sum(cnv==0 & mutStatus==0)/.N, snv=sum(cnv==0 & mutStatus==1)/.N,
+                 amplified=sum(cnv>0 & mutStatus==0)/.N, mut_amplified=sum(cnv>0 & mutStatus==1)/.N,
+                 deleted=sum(cnv<0 & mutStatus==0)/.N, mut_deleted=sum(cnv<0 & mutStatus==1)/.N ), by="geneclass"]
+
+#format data
+mutex<-melt( mutex, id.vars="geneclass", variable.name = "alt", value.name="prop" )
+mutex$alt<-factor(mutex$alt, levels=c("normal","snv","amplified","mut_amplified","deleted","mut_deleted"))
+levels(mutex$alt)<-c("normal","snv","amp","amp_snv","del","del_snv","ma")
+mutex$geneclass=factor(mutex$geneclass,levels=c("HM_e","HM_w","HM_r","HA_e","HA_w","HA_r","DM_e","DM_w","DM_r","ChRC","Helicases","Others"))
+
+#build figure
+fig2a2<-ggplot(data=mutex[alt!="normal"], aes(x=geneclass , y=prop, fill=alt) ) + 
+  geom_bar(stat="identity",position="stack") +
+  scale_fill_manual(values=palette2) + 
+  ylab("%of samples with at least one genetic alterations in ERGs") + 
+  theme(axis.title.x = element_blank(), axis.text.x=element_text(angle=50,hjust=1, size=12)) +
+  theme(axis.title.y = element_text(size=14), axis.text.y=element_text(size=14)  ) +
+  theme(legend.title=element_blank(), legend.text=element_text(size=10) )
+```
+
+```{r echo = FALSE, fig.height = 10, fig.width = 17, fig.align = "center"}
+plot(fig2a2)
+```
+
+```{r include = FALSE}
+jpeg("figure2a2.jpeg", width=2800, height=1200, res = 200)
+plot(fig2a2)
+dev.off()
+```
+
+###Figure 2A3 : Percentage of samples with at least one genetetic alteration in ERG among cancers and genes classes
+
+```{r include = TRUE}
+#calcuate proportion of each alteration type by cancer and geneclass
+mutex<-data[geneclass!="None", .(normal=sum(cnv==0 & mutStatus==0)/.N, snv=sum(cnv==0 & mutStatus==1)/.N,
+                 amplified=sum(cnv>0 & mutStatus==0)/.N, mut_amplified=sum(cnv>0 & mutStatus==1)/.N,
+                 deleted=sum(cnv<0 & mutStatus==0)/.N, mut_deleted=sum(cnv<0 & mutStatus==1)/.N ), by=c("cancer","geneclass")]
+
+#format data
+mutex<-melt( mutex, id.vars=c("cancer","geneclass"), variable.name = "alt", value.name="prop" )
+mutex$alt<-factor(mutex$alt, levels=c("normal","snv","amplified","mut_amplified","deleted","mut_deleted"))
+levels(mutex$alt)<-c("normal","snv","amp","amp_snv","del","del_snv","ma")
+mutex$geneclass=factor(mutex$geneclass,levels=c("HM_e","HM_w","HM_r","HA_e","HA_w","HA_r","DM_e","DM_w","DM_r","ChRC","Helicases","Others"))
+
+#build figure
+fig2a3<-ggplot(data=mutex[alt!="normal"], aes(x=geneclass , y=prop, fill=alt) ) + 
+  geom_bar(stat="identity",position="stack") +
+  scale_fill_manual(values=palette2) + 
+  ylab("%of samples with at least one genetic alterations in ERGs") + 
+  theme(axis.title.x = element_blank(), axis.text.x=element_text(angle=50,hjust=1, size=8)) +
+  theme(axis.title.y = element_text(size=14), axis.text.y=element_text(size=10)  ) +
+  theme(legend.title=element_blank(), legend.text=element_text(size=10) ) +
+  facet_wrap(~cancer, ncol=8 )
+```
+
+```{r echo = FALSE, fig.height = 10, fig.width = 17, fig.align = "center"}
+plot(fig2a3)
+```
+
+```{r include = FALSE}
+jpeg("figure2a3.jpeg", width=2800, height=1200, res = 200)
+plot(fig2a3)
+dev.off()
+```
+
+##Figure2B : Percentage of Altered Genes by Cancer
+
+Then we calculated frequency of altered ERG by cancer, with the following predicates :
+
+* Only deep CNV are concidered ( cnv=2 or cnv=-2 )
+* A gene is concidered beering an alteration (amplified, deleted or snv) if at leat ```{r limit*100}```% of samples support this alteration.
+* When there is both amplification and deletion among the samples for one gene, we use the majority only if the number of samples of one class is at least the double of samples of the other one, otherwise the gene fall in the multiple alteration categorie.
+* If there is more than 1% of samples with a cnv and snv at the same time we also put the gene in the multiple alteration categorie.
+
+```{r include = TRUE}
+#threshold for proportion of sample supporting an alteration
+limit<-0.01
+```
+
+```{r include = TRUE}
+#define classes for each samples
+data$alt="no"
+data$alt[data$cnv > 1]<-"amp"
+data$alt[data$cnv < -1]<-"del"
+data$alt[data$mutStatus>0 & abs(data$cnv)<2] <-"snv"
+data$alt[data$mutStatus>0 & abs(data$cnv)>1]<-"mult"
+
+#calculate percentage for each categories
+altByInd<-data[ , .( del=sum(alt=="del")/.N, amp=sum(alt=="amp")/.N, snv=sum(alt=="snv")/.N , mult=sum(alt=="mult")/.N ) , by=c("cancer","geneclass","genes")]
+
+#Set alteration categories by genes
+altByInd$alt="no"
+altByInd$alt[altByInd$snv>limit & altByInd$del<limit & altByInd$amp<limit ]<-"snv"
+altByInd$alt[altByInd$amp>limit & altByInd$amp>=2*altByInd$del]<-"amp"
+altByInd$alt[altByInd$del>limit & altByInd$del>=2*altByInd$amp]<-"del"
+altByInd$alt[altByInd$snv>limit & altByInd$amp>limit & altByInd$amp>=2*altByInd$del ]<-"ampsnv"
+altByInd$alt[altByInd$snv>limit & altByInd$del>limit & altByInd$del>=2*altByInd$amp ]<-"delsnv"
+altByInd$alt[altByInd$amp>limit & altByInd$amp<2*altByInd$del]<-"alt"
+altByInd$alt[altByInd$del>limit & altByInd$del<2*altByInd$amp]<-"alt"
+altByInd$alt[altByInd$mult>limit]<-"alt"
+```
+
+###Figure 2B1 : Distribution of alterations in ERGs among Cancers
+
+```{r include = TRUE}
+#calculate percentage for each categories for each genes by cancer
+altByGene<-altByInd[ geneclass!="None", .( del=sum(alt=="del")/.N*100, amp=sum(alt=="amp")/.N*100, snv=sum(alt=="snv")/.N*100, ampsnv=sum(alt=="ampsnv")/.N*100, delsnv=sum(alt=="delsnv")/.N*100, alt=sum(alt=="alt")/.N*100 ) , by="cancer"]
+
+#format data
+altByGene<-melt(altByGene, id.vars=c("cancer"))
+colnames(altByGene)<-c("cancer","alteration","proportion")
+altByGene$alteration=factor(altByGene$alteration,levels=c("snv","amp","ampsnv","del","delsnv","alt"))
+levels(altByGene$alteration)<-c("snv","amp","amp_snv","del","del_snv","ma")
+
+#build figure
+fig2b1<-ggplot(data=altByGene, aes(x=reorder(cancer, -proportion), y=proportion, fill=alteration) ) + 
+  geom_bar(stat="identity",position="stack") + 
+  scale_fill_manual(values=palette2) + 
+  ylab("%of ERGs exhibiting genetic alterations") + 
+  theme(axis.title.x = element_blank(), axis.text.x=element_text(angle=50,hjust=1, size=20)) +
+  theme(axis.title.y = element_text(size=20), axis.text.y=element_text(size=14)  ) +
+  theme(legend.title=element_blank(), legend.text=element_text(size=28), legend.position = c(0.8, 0.8) )
+```
+
+```{r echo = FALSE, fig.height = 10, fig.width = 17, fig.align = "center"}
+plot(fig2b1)
+```
+
+```{r include = FALSE}
+jpeg("figure2b1.jpeg", width=2800, height=1300, res = 200)
+plot(fig2b1)
+dev.off()
+```
+
+###Figure 2B2 : Distribution of alterations in ERGs among genes classes
+
+```{r include = TRUE}
+#calculate percentage for each categories for each genes
+altByGene<-altByInd[ geneclass!="None" , .( del=sum(alt=="del")/.N*100, amp=sum(alt=="amp")/.N*100, snv=sum(alt=="snv")/.N*100, ampsnv=sum(alt=="ampsnv")/.N*100, delsnv=sum(alt=="delsnv")/.N*100, alt=sum(alt=="alt")/.N*100) , by=c("geneclass")]
+
+#format data
+altByGene<-melt(altByGene, id.vars=c("geneclass"))
+colnames(altByGene)<-c("geneclass","alteration","proportion")
+altByGene$alteration=factor(altByGene$alteration,levels=c("snv","amp","ampsnv","del","delsnv","alt"))
+levels(altByGene$alteration)<-c("snv","amp","amp_snv","del","del_snv","ma")
+altByGene$geneclass=factor(altByGene$geneclass,levels=c("HM_e","HM_w","HM_r","HA_e","HA_w","HA_r","DM_e","DM_w","DM_r","ChRC","Helicases","Others"))
+
+#build figure
+fig2b2<-ggplot(data=altByGene, aes(x=geneclass, y=proportion, fill=alteration) ) + 
+  geom_bar(stat="identity",position="stack") + 
+  scale_fill_manual(values=palette2) + 
+  ylab("%of ERGs exhibiting genetic alterations") + 
+  theme(axis.title.x = element_blank(), axis.text.x=element_text(angle=50,hjust=1, size=20)) +
+  theme(axis.title.y = element_text(size=20), axis.text.y=element_text(size=14)  ) +
+  theme(legend.title=element_blank(), legend.text=element_text(size=28) )
+
+```
+
+```{r echo = FALSE, fig.height = 10, fig.width = 17, fig.align = "center"}
+plot(fig2b2)
+```
+
+```{r include = FALSE}
+jpeg("figure2b2.jpeg", width=2800, height=1200, res = 200)
+plot(fig2b2)
+dev.off()
+```
+
+###Figure 2B3 : Distribution of alterations in ERGs among cancers and genes classes
+
+```{r include = TRUE}
+#calculate percentage for each categories for each genes
+altByGene<-altByInd[ , .( del=sum(alt=="del")/.N*100, amp=sum(alt=="amp")/.N*100, snv=sum(alt=="snv")/.N*100, ampsnv=sum(alt=="ampsnv")/.N*100, delsnv=sum(alt=="delsnv")/.N*100, alt=sum(alt=="alt")/.N*100) , by=c("cancer","geneclass")]
+
+#format data
+altByGene<-melt(altByGene, id.vars=c("geneclass","cancer"))
+colnames(altByGene)<-c("geneclass","cancer","alteration","proportion")
+altByGene$alteration=factor(altByGene$alteration,levels=c("snv","amp","ampsnv","del","delsnv","alt"))
+levels(altByGene$alteration)<-c("snv","amp","amp_snv","del","del_snv","ma")
+altByGene$geneclass=factor(altByGene$geneclass,levels=c("HM_e","HM_w","HM_r","HA_e","HA_w","HA_r","DM_e","DM_w","DM_r","ChRC","Helicases","Others"))
+
+#build figure
+fig2b3<-ggplot(data=altByGene, aes(x=geneclass, y=proportion, fill=alteration) ) + 
+  geom_bar(stat="identity",position="stack") + 
+  scale_fill_manual(values=palette2) + 
+  ylab("%of ERGs exhibiting genetic alterations") + 
+  theme(axis.title.x = element_blank(), axis.text.x=element_text(angle=50,hjust=1, size=6)) +
+  theme(axis.title.y = element_text(size=20), axis.text.y=element_text(size=12)  ) +
+  theme(legend.title=element_blank(), legend.text=element_text(size=10) ) +
+  facet_wrap(~cancer, ncol=8 )
+```
+
+```{r echo = FALSE, fig.height = 10, fig.width = 17, fig.align = "center"}
+plot(fig2b3)
+```
+
+```{r include = FALSE}
+jpeg("figure2b3.jpeg", width=2800, height=1200, res = 200)
+plot(fig2b3)
+dev.off()
+```
+
+##Figure2C : Mean mutation frequency of ERGs
+
+* We onlys concidered SNVs, exluding samples with CNVs
+
+```{r include = TRUE}
+#calculate means
+mutations<-data[cnv==0, .(CRF=mean(mutStatus)*100 ), by=c("cancer","genes")]
+
+#format data (order by mean)
+orderb<-as.vector( mutations[ , . ( mean(CRF), max(CRF) ), by="cancer"][order(V1, decreasing=T),cancer] ) 
+mutations$cancer<-factor(mutations$cancer, levels=orderb)
+
+#build figure
+fig2c<-ggplot(data=mutations, aes(x=cancer, y=CRF)) + geom_boxplot() + 
+  ylab("Mean Mutationfrequency of ERG") +
+  theme(axis.text.x=element_text(angle=50,hjust=1, size=20), axis.title.x=element_blank() ) +
+  theme(axis.text.y=element_text(size=14), axis.title.y=element_text(size=20)  )
+```
+
+```{r echo = FALSE, fig.height = 10, fig.width = 17, fig.align = "center"}
+plot(fig2c)
+```
+
+```{r include = FALSE}
+jpeg("figure2c.jpeg", width=2800, height=1200, res = 200)
+plot(fig2c)
+dev.off()
+```
+
+```{r include = TRUE}
+#Top ERGs with SNVs
+mutations<-mutations[mutations[, .I[CRF == max(CRF)], by="cancer" ]$V1]
+formattable(mutations)
+```
+
+##Figure 2D : Frequency OF CNVs in ERGs
+
+* We only concidered CNVs, excluding all samples with SNVs
+
+```{r include = TRUE}
+#Calculate frequencies
+cnvs<-data[mutStatus==0, .(CNV=sum(abs(cnv)>0)/.N), by=c("cancer","genes")]
+
+#format data (order by mean)
+orderb<-as.vector( cnvs[ , mean(CNV), by="cancer"][order(V1, decreasing=T),cancer] ) 
+cnvs$cancer<-factor(cnvs$cancer, levels=orderb)
+
+#build figure
+fig2d<-ggplot(data=cnvs, aes(x=cancer, y=CNV)) + geom_boxplot() +
+  theme(axis.text.x=element_text(angle=50,hjust=1, size=12)) +
+  ylab("Mean CNV Frequency of ERGs") +
+  theme(axis.text.x=element_text(angle=50,hjust=1, size=20), axis.title.x=element_blank() ) +
+  theme(axis.text.y=element_text(size=12), axis.title.y=element_text(size=20)  )
+```
+
+```{r echo = FALSE, fig.height = 10, fig.width = 17, fig.align = "center"}
+plot(fig2d)
+```
+
+```{r include = FALSE}
+jpeg("figure2d.jpeg", width=2800, height=1200, res = 200)
+plot(fig2d)
+dev.off()
+```
+
+```{r include = TRUE}
+#top ERGs with CNVs
+cnvs<-cnvs[cnvs[, .I[CNV == max(CNV)], by="cancer" ]$V1]
+formattable(cnvs)
+```
+
+
+##Fig2E CNV chromosomic location
+
+This figure show the proportion of samples that are amplified (red) and deleted (green) for each ERGS with their genomic location based on the HG19 reference.
+
+```{r annotation, include = TRUE}
+#annotate chromosomic location
+species=BSgenome.Hsapiens.UCSC.hg19
+chr.len = seqlengths(species)
+chr.len = chr.len[grep("_|M", names(chr.len), invert = T)]
+
+myIdeo <- GRanges(seqnames = names(chr.len), ranges = IRanges(start = 1, chr.len))
+seqinfo(myIdeo)<-seqinfo(species)
+myIdeo<-keepStandardChromosomes(myIdeo)
+
+k = keys(Homo.sapiens, keytype="SYMBOL")
+res <- select(Homo.sapiens, keys = k, columns =c("TXCHROM","TXSTART","TXEND"), keytype="SYMBOL", multiVals='first')
+res<-res[which(!duplicated(res$SYMBOL)),]
+```
+
+```{r echo = TRUE}
+#select and format data for amplification track
+amp<-data[ , .( cnv=sum(cnv>0)/.N ), by=c("cancer","genes","geneclass")]
+amp<-merge(amp, res, by.x="genes", by.y="SYMBOL")
+amp<-makeGRangesFromDataFrame( as.data.frame(amp[!is.na(TXSTART),]), keep.extra.columns=TRUE )
+seqinfo(amp)<-seqinfo(species)
+amp<-keepStandardChromosomes(amp)
+values(amp)$id = "amplification"
+
+#select and format data for deletion track
+del<-data[ , .( cnv=sum(cnv<0) ), by=c("cancer","genes","geneclass")]
+del<-merge(del, res, by.x="genes", by.y="SYMBOL")
+del <- makeGRangesFromDataFrame( as.data.frame(del[!is.na(TXSTART),]), keep.extra.columns=TRUE )
+seqinfo(del)<-seqinfo(species)
+del<-keepStandardChromosomes(del)
+del$cnv<- -del$cnv
+values(del)$id = "deletion"
+
+#build figure
+fig2e<- ggbio() + circle(myIdeo, geom = "ideo", fill = "gray70", radius = 39, trackWidth = 2) + 
+  circle(del, geom = "point", size = 1, aes(x = midpoint, y = "cnv", color = id), radius = 19, trackWidth = 20) + 
+  scale_colour_manual(values = c(amp_col,del_col)) + 
+  circle(amp, geom = "point", size = 1, aes(x = midpoint, y = "cnv", color = id), radius = 41, trackWidth = 20) + 
+  facet_wrap( ~cancer, ncol=8) + theme_alignment() + theme(strip.text.x = element_text(size=14), axis.title.x=element_blank()) +
+  guides(colour=FALSE)
+```
+
+```{r echo = FALSE, fig.height = 8, fig.width = 16, fig.align = "center"}
+fig2e
+```
+
+```{r include = FALSE}
+jpeg("figure2e.jpeg", width=4400, height=2200, res = 200)
+fig2e
+dev.off()
+```
+
+##Figure 2G : Mutations (SNV) vs Copy number variation (CNV)
+
+This figure show distribution of ERGs according to the proportion of mutations (CNV and SNVs) amongs the samples.
+
+Since some of the samples of one gene can be amplified and other can be deleted, we splitted this figure in two parts.
+As a miror image, the green part is the proportion of deleted samples vs the percentage of SNV and the red part is the proportion of amplified samples vs the percentage of SNV.
+So each genes is represented twice, with one red and one green dots
+
+```{r include = TRUE}
+#get labels
+gene_label<-data[, .( count=uniqueN(ind) ), by="cancer"]
+gene_label<-unlist(setNames(as.list(paste0(gene_label$cancer," (",gene_label$count,")") ), gene_label$cancer ))
+
+#select data
+alterations<-data[, .(pSNV=mean(mutStatus, na.rm=T), cnvp=sum(cnv>0)/.N, cnvm=sum(cnv<0)/.N  ), by=c("cancer","genes")]
+
+#build figure
+fig2g<-ggplot(data=alterations, aes(y=pSNV) ) + 
+  geom_point( aes( x=cnvp ), color=amp_col) + 
+  geom_point( aes( x=-cnvm), color=del_col) + 
+  facet_wrap( ~cancer , ncol=8, labeller=as_labeller(gene_label) ) + 
+  theme(strip.text.x = element_text(size=14)) +
+  theme(axis.title.x = element_blank(), axis.text.x=element_text(size=14)) +
+  theme(axis.title.y = element_blank(), axis.text.y=element_text(size=14))
+```
+
+```{r echo = FALSE, fig.height = 8, fig.width = 18, fig.align = "center"}
+plot(fig2g)
+```
+
+```{r include = FALSE}
+jpeg("figure2g.jpeg", width=2800, height=1200, res = 200)
+plot(fig2g)
+dev.off()
+```
